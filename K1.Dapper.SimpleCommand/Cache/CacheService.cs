@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text;
 
 namespace K1.Dapper.SimpleCommand.Cache
@@ -33,6 +34,23 @@ namespace K1.Dapper.SimpleCommand.Cache
             value = newSb.ToString();
             StringBuilderCacheDict.AddOrUpdate(cacheKey, value, (t, v) => value);
             sb.Append(value);
+        }
+
+
+        internal class IdPropsCache
+        {
+            private const string CacheKeyTemplate = "IdProps.{0}.{1}";
+
+            private static ConcurrentDictionary<string, PropertyInfo[]> _cache = new ConcurrentDictionary<string, PropertyInfo[]>();
+
+            internal static bool TryGet(Type type, out PropertyInfo[] propertyInfos)
+                => _cache.TryGetValue(GetKey(type), out propertyInfos);
+
+            internal static void AddCache(Type type, PropertyInfo[] propertyInfos)
+                => _cache.TryAdd(GetKey(type), propertyInfos);
+
+            private static string GetKey(Type type) 
+                => string.Format(CacheKeyTemplate, type.DeclaringType, type.Name);
         }
 
 

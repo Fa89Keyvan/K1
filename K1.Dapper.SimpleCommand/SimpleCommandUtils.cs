@@ -75,10 +75,24 @@ namespace K1.Dapper.SimpleCommand
 
         //Get all properties that are named Id or have the Key attribute
         //For Get(id) and Delete(id) we don't have an entity, just the type so this method is used
-        private static IEnumerable<PropertyInfo> GetIdProperties(Type type)
+        private static PropertyInfo[] GetIdProperties(Type type)
         {
-            var tp = type.GetProperties().Where(p => p.GetCustomAttributes(true).Any(attr => attr.GetType().Name == typeof(KeyAttribute).Name)).ToList();
-            return tp.Any() ? tp : type.GetProperties().Where(p => p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase));
+            PropertyInfo[] idProps;
+
+            if(CacheService.IdPropsCache.TryGet(type, out idProps))
+            {
+                return idProps;
+            }
+
+            var tp = type.GetProperties()
+                .Where(p => p.GetCustomAttributes(true).Any(attr => attr.GetType().Name == typeof(KeyAttribute).Name))
+                .ToArray();
+
+            idProps = tp.Any() ? tp : type.GetProperties().Where(p => p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            CacheService.IdPropsCache.AddCache(type, idProps);
+
+            return idProps;
         }
 
         //Gets the table name for this entity
