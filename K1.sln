@@ -9,6 +9,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K1.MyConsoleApp", "K1.MyCon
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K1.Dapper.SimpleCommand", "K1.Dapper.SimpleCommand\K1.Dapper.SimpleCommand.csproj", "{700ED398-5F05-43A6-8E39-8F7E78280F89}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "K1.Dapper.SimpleCommand.Test", "K1.Dapper.SimpleCommand.Test\K1.Dapper.SimpleCommand.Test.csproj", "{9DF84851-F966-48DD-8B0C-22A63C8F7637}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "K1.Dapper", "K1.Dapper", "{87074892-9D72-4082-ADCC-C5D8C63E8D59}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,9 +31,17 @@ Global
 		{700ED398-5F05-43A6-8E39-8F7E78280F89}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{700ED398-5F05-43A6-8E39-8F7E78280F89}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{700ED398-5F05-43A6-8E39-8F7E78280F89}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9DF84851-F966-48DD-8B0C-22A63C8F7637}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DF84851-F966-48DD-8B0C-22A63C8F7637}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DF84851-F966-48DD-8B0C-22A63C8F7637}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DF84851-F966-48DD-8B0C-22A63C8F7637}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{700ED398-5F05-43A6-8E39-8F7E78280F89} = {87074892-9D72-4082-ADCC-C5D8C63E8D59}
+		{9DF84851-F966-48DD-8B0C-22A63C8F7637} = {87074892-9D72-4082-ADCC-C5D8C63E8D59}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D6484A96-ADC1-4B1B-A652-62301F79F9BB}

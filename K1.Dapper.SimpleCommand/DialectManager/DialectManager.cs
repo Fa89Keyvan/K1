@@ -22,7 +22,7 @@ namespace K1.Dapper.SimpleCommand.DialectManager
                     _dialect = Dialect.SQLServer;
                     _encapsulation = "[{0}]";
                     _getIdentitySql = string.Format("SELECT CAST(SCOPE_IDENTITY()  AS BIGINT) AS [id]");
-                    _getPagedListSql = "SELECT * FROM {SelectColumns} FROM {TableName} {WhereClause} ORDER BY {OrderBy} OFFSET {Offset} ROWS FETCH NEXT {RowsPerPage} ROWS ONLY";
+                    _getPagedListSql = "SELECT {SelectColumns} FROM {TableName} {WhereClause} ORDER BY {OrderBy} OFFSET {Offset} ROWS FETCH NEXT {RowsPerPage} ROWS ONLY";
                     break;
                 case Dialect.SQLServer2008:
                     _dialect = Dialect.SQLServer2008;
@@ -62,5 +62,6 @@ namespace K1.Dapper.SimpleCommand.DialectManager
             return string.Format(Encapsulation, databaseword);
         }
 
+        public static Dialect GetDialect() => _dialect;
     }
 }

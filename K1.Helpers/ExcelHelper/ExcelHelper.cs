@@ -12,7 +12,7 @@ namespace K1.Libs.Utils.ExcelHelper
     public class ExcelHelper
     {
         private const string DefaultSheetNameTemplate = "Sheet{0}";
-        static ExcelHelper() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        //static ExcelHelper() => Encoding.RegisterProvider(EncodingProvider.Instance);
 
         public DataSet Read(FileStream excelFileStream, ExcelReaderSetting setting = null)
         {
