@@ -214,8 +214,6 @@ namespace Dapper.Contrib.Extensions
     {
         public int Total { get; set; }
         public int TotalFiltered { get; set; }
-        public int Page { get; set; }
-        public int PageSize { get; set; }
         public List<TModel> Data { get; set; }
     }
 
