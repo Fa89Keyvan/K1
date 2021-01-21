@@ -19,8 +19,10 @@ namespace K1.Dapper.ContribPlus
         {
             var filters = new Filter[]
             {
-                Filter.Create("ProductName", Operator.Contains, "a"), 
-                Filter.Create("ProductID", Operator.Grather, 5)
+                Filter.Create("ProductName", Operator.Contains, "a"),
+                Filter.Create("ProductID", Operator.Grather, 5),
+                Filter.CreateInFilter("ProductID",1,6,7,8,9,10,11,12,13)
+
             };
             var products = dbConnection.GetPagedList<Product>
                 (offset: 5, fetch: 10, filters: filters);

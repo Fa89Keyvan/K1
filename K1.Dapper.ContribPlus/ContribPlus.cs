@@ -12,12 +12,12 @@ namespace Dapper.Contrib.Extensions
 
 
         public static PagedList<TEntity> GetPagedList<TEntity>
-            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC,int offset = 0, int fetch = 1000, bool withNoLock = true ,IDbTransaction dbTransaction = null, Filter[] filters = null) 
+            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC,int offset = 0, int fetch = 1000, bool withNoLock = true ,IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null) 
             where TEntity : class
         {
             var pagedList = new PagedList<TEntity>();
 
-            if(fetch < 1)
+            if (fetch < 1)
             {
                 return pagedList;
             }
@@ -28,41 +28,25 @@ namespace Dapper.Contrib.Extensions
 
             var builder = new StringBuilder();
             var parameters = new DynamicParameters();
-            
+
             builder.AppendFormat("Select * From {0} ", tableName);
 
             if (withNoLock)
                 builder.Append(" with(nolock) ");
 
-            pagedList.Total = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), transaction: dbTransaction);
+            pagedList.Total = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), transaction: dbTransaction, commandTimeout: commandTimeout);
 
-            if(pagedList.Total < 1 || pagedList.Total < offset)
+            if (pagedList.Total < 1 || pagedList.Total < offset)
             {
                 return pagedList;
             }
-            
+
             orders = Helpers.SanatizeSql(orders);
+            ApplyFilters(filters, builder, parameters);
 
-            if(filters != null && filters.Length > 0)
-            {
-                builder.Append(" Where ");
+            pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
 
-                for (int i = 0; i < filters.Length; i++)
-                {
-                    var filter = filters[i];
-
-                    builder.Append(filter.SqlFilterStatement);
-                    filter.AddToDapperParameters(parameters);
-
-                    if (i + 1 < filters.Length)
-                        builder.Append(" AND ");
-
-                }
-            }
-
-            pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"),param: parameters, transaction: dbTransaction);
-
-            if(pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < offset)
+            if (pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < offset)
             {
                 return pagedList;
             }
@@ -72,10 +56,68 @@ namespace Dapper.Contrib.Extensions
             parameters.Add("@FETCH", fetch);
 
 
-            pagedList.Data = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction).ToList();
+            pagedList.Data = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction, commandTimeout: commandTimeout).ToList();
 
             return pagedList;
         }
+
+        public static long Count<TEntity>
+            (this IDbConnection db, bool withNoLock = true, IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null)
+        {
+            long count = 0;
+
+            var type = typeof(TEntity);
+            string tableName = Cache.GetTableName(type);
+
+            var builder = new StringBuilder();
+            var parameters = new DynamicParameters();
+
+            builder.AppendFormat("Select Count(1) From {0} ", tableName);
+
+            if (withNoLock)
+                builder.Append(" with(nolock) ");
+
+            ApplyFilters(filters, builder, parameters);
+
+            count = db.ExecuteScalar<long>(sql: builder.ToString(), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
+
+            return count;
+
+        }
+
+
+
+        #region ' Private Methods '
+
+        private static void ApplyFilters(Filter[] filters, StringBuilder builder, DynamicParameters parameters)
+        {
+            if (filters != null && filters.Length > 0)
+            {
+                builder.Append(" Where ");
+
+                for (int i = 0; i < filters.Length; i++)
+                {
+                    var filter = filters[i];
+
+                    if(i > 0)
+                        builder.Append(" AND ");
+
+                    if(filter.Operator == Operator.In)
+                    {
+                        string inClouse = filter.CreateInClouse(parameters);
+                        builder.Append(inClouse);
+                    }
+                    else
+                    {
+                        builder.Append(filter.SqlFilterStatement);
+                        filter.AddToDapperParameters(parameters);
+                    }
+                }
+            }
+        }
+
+        #endregion
+
     }
 
     static class Helpers
@@ -106,9 +148,15 @@ namespace Dapper.Contrib.Extensions
         {
             Name = name,
             Operator = optr,
-            Value = value
+            Values = new object[] { value }
         };
 
+        public static Filter CreateInFilter(string name, params object[] values) => new Filter
+        {
+            Name = name,
+            Operator = Operator.In,
+            Values = values
+        };
 
         private static readonly Dictionary<Operator, string> SqlOperators = new Dictionary<Operator, string>()
         {
@@ -122,11 +170,12 @@ namespace Dapper.Contrib.Extensions
             { Operator.EndsWith,     " Like " },
             { Operator.Contains,     " Like " },
             { Operator.IsNull,       " Is Null " },
-            { Operator.IsNotNull,    " Is Not Null" }
+            { Operator.IsNotNull,    " Is Not Null" },
+            { Operator.In,           " In " }
         };
 
         public string Name { get; private set; }
-        public object Value { get; private set; }
+        public object[] Values { get; private set; }
         public Operator Operator { get; private set; }
 
 
@@ -153,11 +202,39 @@ namespace Dapper.Contrib.Extensions
                         return $"N'%' + @{Name}";
                     case Operator.Contains:
                         return $"N'%' + @{Name} + '%'";
+                    case Operator.In:
+                        return " In ";
                     default:
                         throw new Exception("invalid operator");
                 }
             }
         }
+
+        internal string CreateInClouse(DynamicParameters parameters)
+        {
+            if (Values != null && Values.Length > 0)
+            {
+                var inClouse = new StringBuilder();
+                inClouse.AppendFormat(" {0} {1}( ", Name, SqlOperator);
+                for (int index = 0; index < Values.Length; index++)
+                {
+                    if (index > 0)
+                        inClouse.Append(",");
+
+                    string paramName = string.Format("@{0}_{1}", Name, index);
+
+                    inClouse.AppendFormat(paramName);
+                    parameters.Add(paramName, Values[index]);
+
+                }
+                inClouse.Append(") ");
+
+                return inClouse.ToString();
+            }
+
+            return "";
+        }
+
         public string SqlFilterStatement
         {
             get
@@ -178,6 +255,8 @@ namespace Dapper.Contrib.Extensions
                     case Operator.IsNull:
                     case Operator.IsNotNull:
                         return $" {Name} {SqlParameter} ";
+                    case Operator.In:
+                        return "";
                     default:
                         throw new Exception("invalid operator");
                 }
@@ -186,7 +265,7 @@ namespace Dapper.Contrib.Extensions
 
         public override string ToString() => SqlFilterStatement;
 
-        public void AddToDapperParameters(DynamicParameters dynamicParameters) => dynamicParameters.Add(Name, Value);
+        public void AddToDapperParameters(DynamicParameters dynamicParameters) => dynamicParameters.Add(Name, Values[0]);
     }
 
     public enum Operator
@@ -201,7 +280,8 @@ namespace Dapper.Contrib.Extensions
         EndsWith = 7,
         Contains = 8,
         IsNull = 9,
-        IsNotNull = 10
+        IsNotNull = 10,
+        In = 11
     }
 
     public enum OrderDir
