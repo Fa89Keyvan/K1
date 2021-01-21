@@ -1,4 +1,5 @@
-﻿using System;
+﻿using K1.Dapper.ContribPlus.Filters;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -12,7 +13,7 @@ namespace Dapper.Contrib.Extensions
 
 
         public static PagedList<TEntity> GetPagedList<TEntity>
-            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC,int offset = 0, int fetch = 1000, bool withNoLock = true ,IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null) 
+            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC, int offset = 0, int fetch = 1000, bool withNoLock = true, IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null)
             where TEntity : class
         {
             var pagedList = new PagedList<TEntity>();
@@ -99,19 +100,12 @@ namespace Dapper.Contrib.Extensions
                 {
                     var filter = filters[i];
 
-                    if(i > 0)
+                    if (i > 0)
                         builder.Append(" AND ");
 
-                    if(filter.Operator == Operator.In)
-                    {
-                        string inClouse = filter.CreateInClouse(parameters);
-                        builder.Append(inClouse);
-                    }
-                    else
-                    {
-                        builder.Append(filter.SqlFilterStatement);
-                        filter.AddToDapperParameters(parameters);
-                    }
+                    builder.Append(filter.SqlFilterStatement);
+                    filter.AppendToParameters(parameters);
+
                 }
             }
         }
@@ -140,150 +134,6 @@ namespace Dapper.Contrib.Extensions
         }
     }
 
-    public class Filter
-    {
-        private Filter() { }
-
-        public static Filter Create(string name, Operator optr, object value) => new Filter
-        {
-            Name = name,
-            Operator = optr,
-            Values = new object[] { value }
-        };
-
-        public static Filter CreateInFilter(string name, params object[] values) => new Filter
-        {
-            Name = name,
-            Operator = Operator.In,
-            Values = values
-        };
-
-        private static readonly Dictionary<Operator, string> SqlOperators = new Dictionary<Operator, string>()
-        {
-            { Operator.Equal,        " = " },
-            { Operator.Grather,      " > " },
-            { Operator.Lower,        " < " },
-            { Operator.GratherEqual, " >= " },
-            { Operator.LowerEqual,   " <= " },
-            { Operator.NotEqual,     " <> " },
-            { Operator.StartsWith,   " Like " },
-            { Operator.EndsWith,     " Like " },
-            { Operator.Contains,     " Like " },
-            { Operator.IsNull,       " Is Null " },
-            { Operator.IsNotNull,    " Is Not Null" },
-            { Operator.In,           " In " }
-        };
-
-        public string Name { get; private set; }
-        public object[] Values { get; private set; }
-        public Operator Operator { get; private set; }
-
-
-        public string SqlOperator => SqlOperators[this.Operator];
-        public string SqlParameter
-        {
-            get
-            {
-                switch (Operator)
-                {
-                    case Operator.Equal:
-                    case Operator.Grather:
-                    case Operator.Lower:
-                    case Operator.GratherEqual:
-                    case Operator.LowerEqual:
-                    case Operator.NotEqual:
-                        return "@" + Name;
-                    case Operator.IsNull:
-                    case Operator.IsNotNull:
-                        return " ";
-                    case Operator.StartsWith:
-                        return $"@{Name} + '%'";
-                    case Operator.EndsWith:
-                        return $"N'%' + @{Name}";
-                    case Operator.Contains:
-                        return $"N'%' + @{Name} + '%'";
-                    case Operator.In:
-                        return " In ";
-                    default:
-                        throw new Exception("invalid operator");
-                }
-            }
-        }
-
-        internal string CreateInClouse(DynamicParameters parameters)
-        {
-            if (Values != null && Values.Length > 0)
-            {
-                var inClouse = new StringBuilder();
-                inClouse.AppendFormat(" {0} {1}( ", Name, SqlOperator);
-                for (int index = 0; index < Values.Length; index++)
-                {
-                    if (index > 0)
-                        inClouse.Append(",");
-
-                    string paramName = string.Format("@{0}_{1}", Name, index);
-
-                    inClouse.AppendFormat(paramName);
-                    parameters.Add(paramName, Values[index]);
-
-                }
-                inClouse.Append(") ");
-
-                return inClouse.ToString();
-            }
-
-            return "";
-        }
-
-        public string SqlFilterStatement
-        {
-            get
-            {
-                switch (Operator)
-                {
-                    case Operator.Equal:
-                    case Operator.Grather:
-                    case Operator.Lower:
-                    case Operator.GratherEqual:
-                    case Operator.LowerEqual:
-                    case Operator.NotEqual:
-                    case Operator.StartsWith:
-                    case Operator.EndsWith:
-                    case Operator.Contains:
-                        return $" {Name} {SqlOperator} {SqlParameter} ";
-
-                    case Operator.IsNull:
-                    case Operator.IsNotNull:
-                        return $" {Name} {SqlParameter} ";
-                    case Operator.In:
-                        return "";
-                    default:
-                        throw new Exception("invalid operator");
-                }
-            }
-        }
-
-        public override string ToString() => SqlFilterStatement;
-
-        public void AddToDapperParameters(DynamicParameters dynamicParameters) => dynamicParameters.Add(Name, Values[0]);
-    }
-
-    public enum Operator
-    {
-        Equal = 0,
-        Grather = 1,
-        Lower = 2,
-        GratherEqual = 3,
-        LowerEqual = 4,
-        NotEqual = 5,
-        StartsWith = 6,
-        EndsWith = 7,
-        Contains = 8,
-        IsNull = 9,
-        IsNotNull = 10,
-        In = 11
-    }
-
     public enum OrderDir
     {
         ASC = 0,
@@ -306,14 +156,14 @@ namespace Dapper.Contrib.Extensions
             var typeHandle = type.TypeHandle;
             string tableName;
 
-            if(TableNames.TryGetValue(typeHandle, out tableName))
+            if (TableNames.TryGetValue(typeHandle, out tableName))
             {
                 return tableName;
             }
 
             var tableAttribute = type.GetCustomAttributes(typeof(TableAttribute), true)?.FirstOrDefault();
-            
-            if(tableAttribute != null && tableAttribute is TableAttribute)
+
+            if (tableAttribute != null && tableAttribute is TableAttribute)
             {
                 tableName = (tableAttribute as TableAttribute).Name;
             }
@@ -325,7 +175,7 @@ namespace Dapper.Contrib.Extensions
             TableNames.TryAdd(typeHandle, tableName);
 
             return tableName;
-            
+
         }
     }
 }

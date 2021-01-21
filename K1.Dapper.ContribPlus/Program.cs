@@ -3,6 +3,7 @@ using System.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Dapper.Contrib.Extensions;
+using K1.Dapper.ContribPlus.Filters;
 
 namespace K1.Dapper.ContribPlus
 {
@@ -19,13 +20,11 @@ namespace K1.Dapper.ContribPlus
         {
             var filters = new Filter[]
             {
-                Filter.Create("ProductName", Operator.Contains, "a"),
-                Filter.Create("ProductID", Operator.Grather, 5),
-                Filter.CreateInFilter("ProductID",1,6,7,8,9,10,11,12,13)
-
+                Filter.InClouse("ProductID", 1,2,3,4,5,6,7),
+                Filter.Contains("ProductName", "h")
             };
             var products = dbConnection.GetPagedList<Product>
-                (offset: 5, fetch: 10, filters: filters);
+                (offset: 0, fetch: 10, filters: filters);
 
             Console.WriteLine("Hello World!");
         }
