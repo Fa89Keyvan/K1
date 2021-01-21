@@ -12,7 +12,7 @@ namespace Dapper.Contrib.Extensions
 
 
         public static PagedList<TEntity> GetPagedList<TEntity>
-            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC,int offset = 0, int fetch = 1000, Filter[] filters = null, bool withNoLock = true ,IDbTransaction dbTransaction = null) 
+            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC,int offset = 0, int fetch = 1000, bool withNoLock = true ,IDbTransaction dbTransaction = null, Filter[] filters = null) 
             where TEntity : class
         {
             var pagedList = new PagedList<TEntity>();
@@ -60,7 +60,7 @@ namespace Dapper.Contrib.Extensions
                 }
             }
 
-            pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), transaction: dbTransaction);
+            pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"),param: parameters, transaction: dbTransaction);
 
             if(pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < offset)
             {
@@ -173,7 +173,7 @@ namespace Dapper.Contrib.Extensions
                     case Operator.StartsWith:
                     case Operator.EndsWith:
                     case Operator.Contains:
-                        return $" {Name} {SqlFilterStatement} {SqlParameter} ";
+                        return $" {Name} {SqlOperator} {SqlParameter} ";
 
                     case Operator.IsNull:
                     case Operator.IsNotNull:
