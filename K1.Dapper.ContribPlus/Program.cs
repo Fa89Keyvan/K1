@@ -26,6 +26,13 @@ namespace K1.Dapper.ContribPlus
             var products = dbConnection.GetPagedList<Product>
                 (offset: 0, fetch: 10, filters: filters);
 
+            var filters1 = new Filter[]
+            {
+                Filter.Between("CategoryID",1,5)
+            };
+
+            var products1 = dbConnection.GetPagedList<Product>(filters: filters1);
+
             Console.WriteLine("Hello World!");
         }
     }

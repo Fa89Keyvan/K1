@@ -17,6 +17,6 @@ namespace K1.Dapper.ContribPlus.Filters
         public static Filter StartsWith(string name, string value) => new ContainFilter(name, ContaintTypes.StartsWith, value);
         public static Filter EndsWith(string name, string value) => new ContainFilter(name, ContaintTypes.EndsWith, value);
         public static Filter Contains(string name, string value) => new ContainFilter(name, ContaintTypes.Contains, value);
-
+        public static Filter Between(string name, object min, object max) => new BetweenFilter(name, min, max);
     }
 }
