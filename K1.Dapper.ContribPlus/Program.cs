@@ -18,20 +18,17 @@ namespace K1.Dapper.ContribPlus
 
         static void Main(string[] args)
         {
-            var filters = new Filter[]
-            {
-                Filter.InClouse("ProductID", 1,2,3,4,5,6,7),
-                Filter.Contains("ProductName", "h")
-            };
-            var products = dbConnection.GetPagedList<Product>
-                (offset: 0, fetch: 10, filters: filters);
+            //var filters = new Filter[]
+            //{
+            //    Filter.InClouse("ProductID", 1,2,3,4,5,6,7),
+            //    Filter.Contains("ProductName", "h")
+            //};
 
-            var filters1 = new Filter[]
-            {
-                Filter.Between("CategoryID",1,5)
-            };
+            var listRequest = new PageListRequest();
 
-            var products1 = dbConnection.GetPagedList<Product>(filters: filters1);
+            listRequest.AddFilterInClouse("ProductID", 1, 2, 3, 4, 5, 6, 7).AddFilterContains("ProductName", "h");
+
+            var resutl = dbConnection.GetPagedList<Product>(listRequest);
 
             Console.WriteLine("Hello World!");
         }

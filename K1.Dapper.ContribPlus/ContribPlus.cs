@@ -1,6 +1,4 @@
 ﻿using K1.Dapper.ContribPlus.Filters;
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -13,12 +11,12 @@ namespace Dapper.Contrib.Extensions
 
 
         public static PagedList<TEntity> GetPagedList<TEntity>
-            (this IDbConnection db, string orders = "1", OrderDir dir = OrderDir.ASC, int offset = 0, int fetch = 1000, bool withNoLock = true, IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null)
+            (this IDbConnection db, PageListRequest listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
             where TEntity : class
         {
             var pagedList = new PagedList<TEntity>();
 
-            if (fetch < 1)
+            if (listRequest.Fetch < 1)
             {
                 return pagedList;
             }
@@ -32,29 +30,31 @@ namespace Dapper.Contrib.Extensions
 
             builder.AppendFormat("Select * From {0} ", tableName);
 
-            if (withNoLock)
+            if (listRequest.WithNolock)
                 builder.Append(" with(nolock) ");
 
             pagedList.Total = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), transaction: dbTransaction, commandTimeout: commandTimeout);
 
-            if (pagedList.Total < 1 || pagedList.Total < offset)
+            if (pagedList.Total < 1 || pagedList.Total < listRequest.Offset)
             {
                 return pagedList;
             }
 
-            orders = Helpers.SanatizeSql(orders);
-            ApplyFilters(filters, builder, parameters);
+            string orders = string.Join(',', listRequest.Orders);
+            orders = SqlSanatizer.Sanatize(orders);
+
+            ApplyFilters(listRequest.GetFilters(), builder, parameters);
 
             pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
 
-            if (pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < offset)
+            if (pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < listRequest.Offset)
             {
                 return pagedList;
             }
 
-            builder.AppendFormat(" Order by {0} {1} Offset (@OFFSET) ROWS Fetch Next (@FETCH) Rows Only", orders, dir.ToString());
-            parameters.Add("@OFFSET", offset);
-            parameters.Add("@FETCH", fetch);
+            builder.AppendFormat(" Order by {0} {1} Offset (@OFFSET) ROWS Fetch Next (@FETCH) Rows Only", orders, listRequest.OrderDirection.ToString());
+            parameters.Add("@OFFSET", listRequest.Offset);
+            parameters.Add("@FETCH", listRequest.Fetch);
 
 
             pagedList.Data = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction, commandTimeout: commandTimeout).ToList();
@@ -63,7 +63,7 @@ namespace Dapper.Contrib.Extensions
         }
 
         public static long Count<TEntity>
-            (this IDbConnection db, bool withNoLock = true, IDbTransaction dbTransaction = null, Filter[] filters = null, int? commandTimeout = null)
+            (this IDbConnection db, PageListRequest listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
         {
             long count = 0;
 
@@ -75,10 +75,10 @@ namespace Dapper.Contrib.Extensions
 
             builder.AppendFormat("Select Count(1) From {0} ", tableName);
 
-            if (withNoLock)
+            if (listRequest.WithNolock)
                 builder.Append(" with(nolock) ");
 
-            ApplyFilters(filters, builder, parameters);
+            ApplyFilters(listRequest.GetFilters(), builder, parameters);
 
             count = db.ExecuteScalar<long>(sql: builder.ToString(), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
 
@@ -90,13 +90,13 @@ namespace Dapper.Contrib.Extensions
 
         #region ' Private Methods '
 
-        private static void ApplyFilters(Filter[] filters, StringBuilder builder, DynamicParameters parameters)
+        private static void ApplyFilters(List<Filter> filters, StringBuilder builder, DynamicParameters parameters)
         {
-            if (filters != null && filters.Length > 0)
+            if (filters != null && filters.Count > 0)
             {
                 builder.Append(" Where ");
 
-                for (int i = 0; i < filters.Length; i++)
+                for (int i = 0; i < filters.Count; i++)
                 {
                     var filter = filters[i];
 
@@ -114,68 +114,93 @@ namespace Dapper.Contrib.Extensions
 
     }
 
-    static class Helpers
+    public class PageListRequest
     {
-        internal static string SanatizeSql(string str)
+        private List<Filter> _filters;
+        public PageListRequest()
         {
-            if (string.IsNullOrWhiteSpace(str))
-                return str;
-
-            return str
-                .Replace("'", "")
-                .Replace("\"", "")
-                .Replace("-", "")
-                .Replace("drop", "")
-                .Replace('\b', ' ')
-                .Replace('\r', ' ')
-                .Replace(';', ' ')
-                .Replace('\n', ' ')
-                .Replace('\t', ' ');
+            this._filters = new List<Filter>();
+            this.Fetch = 1000;
+            this.Offset = 0;
+            this.OrderDirection = OrderDir.ASC;
+            this.WithNolock = false;
         }
-    }
 
-    public enum OrderDir
-    {
-        ASC = 0,
-        DESC = 1
-    }
+        public OrderDir OrderDirection { get; set; }
 
-    public class PagedList<TModel> where TModel : class
-    {
-        public int Total { get; set; }
-        public int TotalFiltered { get; set; }
-        public List<TModel> Data { get; set; }
-    }
 
-    internal static class Cache
-    {
-        private static ConcurrentDictionary<RuntimeTypeHandle, string> TableNames = new ConcurrentDictionary<RuntimeTypeHandle, string>();
-
-        internal static string GetTableName(Type type)
+        private int _offset;
+        public int Offset
         {
-            var typeHandle = type.TypeHandle;
-            string tableName;
+            get => _offset;
+            set => _offset = value < 0 ? 0 : value;
+        }
 
-            if (TableNames.TryGetValue(typeHandle, out tableName))
-            {
-                return tableName;
-            }
+        private int _fetch;
+        public int Fetch
+        {
+            get => _fetch;
+            set => _fetch = value < 0 ? 0 : value;
+        }
 
-            var tableAttribute = type.GetCustomAttributes(typeof(TableAttribute), true)?.FirstOrDefault();
+        private string[] _orders;
 
-            if (tableAttribute != null && tableAttribute is TableAttribute)
-            {
-                tableName = (tableAttribute as TableAttribute).Name;
-            }
-            else
-            {
-                tableName = type.Name;
-            }
+        public string[] Orders
+        {
+            get => _orders ?? new string[1] { " 1 " };
+            set => _orders = value;
+        }
 
-            TableNames.TryAdd(typeHandle, tableName);
+        public bool WithNolock { get; set; }
 
-            return tableName;
+        public List<Filter> GetFilters() => _filters;
 
+        public PageListRequest AddFilterAddSimple(string name, Operators @operator, object value)
+        {
+            _filters.Add(new SimpleFilter(name, @operator, value));
+            return this;
+        }
+
+        public PageListRequest AddFilterIsNull(string name)
+        {
+            _filters.Add(new IsNullFilter(name, NullCondition.IsNull));
+            return this;
+        }
+
+        public PageListRequest AddFilterIsNotNull(string name)
+        {
+            _filters.Add(new IsNullFilter(name, NullCondition.IsNotNull));
+            return this; 
+        }
+
+        public PageListRequest AddFilterInClouse(string name, params object[] values)
+        {
+            _filters.Add(new InClouseFilter(name, values));
+            return this; 
+        }
+
+        public PageListRequest AddFilterStartsWith(string name, string value)
+        {
+            _filters.Add(new ContainFilter(name, ContaintTypes.StartsWith, value));
+            return this;
+        }
+
+        public PageListRequest AddFilterEndsWith(string name, string value)
+        {
+            _filters.Add(new ContainFilter(name, ContaintTypes.EndsWith, value));
+            return this;
+        }
+
+        public PageListRequest AddFilterContains(string name, string value)
+        {
+            _filters.Add(new ContainFilter(name, ContaintTypes.Contains, value));
+            return this;
+        }
+
+        public PageListRequest AddFilterBetween(string name, object min, object max)
+        {
+            _filters.Add(new BetweenFilter(name, min, max));
+            return this; 
         }
     }
 }
