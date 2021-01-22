@@ -24,7 +24,7 @@ namespace K1.Dapper.ContribPlus
             //    Filter.Contains("ProductName", "h")
             //};
 
-            var listRequest = new PageListRequest();
+            var listRequest = new PageListRequest<Product>();
 
             listRequest.AddFilterInClouse("ProductID", 1, 2, 3, 4, 5, 6, 7).AddFilterContains("ProductName", "h");
 

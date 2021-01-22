@@ -11,12 +11,12 @@ namespace Dapper.Contrib.Extensions
 
 
         public static PagedList<TEntity> GetPagedList<TEntity>
-            (this IDbConnection db, PageListRequest listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
+            (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
             where TEntity : class
         {
             var pagedList = new PagedList<TEntity>();
 
-            if (listRequest.Fetch < 1)
+            if (listRequest.FetchCount < 1)
             {
                 return pagedList;
             }
@@ -35,7 +35,7 @@ namespace Dapper.Contrib.Extensions
 
             pagedList.Total = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), transaction: dbTransaction, commandTimeout: commandTimeout);
 
-            if (pagedList.Total < 1 || pagedList.Total < listRequest.Offset)
+            if (pagedList.Total < 1 || pagedList.Total < listRequest.OffsetCount)
             {
                 return pagedList;
             }
@@ -47,14 +47,14 @@ namespace Dapper.Contrib.Extensions
 
             pagedList.TotalFiltered = db.ExecuteScalar<int>(sql: builder.ToString().Replace("*", "Count(1)"), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
 
-            if (pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < listRequest.Offset)
+            if (pagedList.TotalFiltered < 1 || pagedList.TotalFiltered < listRequest.OffsetCount)
             {
                 return pagedList;
             }
 
             builder.AppendFormat(" Order by {0} {1} Offset (@OFFSET) ROWS Fetch Next (@FETCH) Rows Only", orders, listRequest.OrderDirection.ToString());
-            parameters.Add("@OFFSET", listRequest.Offset);
-            parameters.Add("@FETCH", listRequest.Fetch);
+            parameters.Add("@OFFSET", listRequest.OffsetCount);
+            parameters.Add("@FETCH", listRequest.FetchCount);
 
 
             pagedList.Data = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction, commandTimeout: commandTimeout).ToList();
@@ -63,7 +63,7 @@ namespace Dapper.Contrib.Extensions
         }
 
         public static long Count<TEntity>
-            (this IDbConnection db, PageListRequest listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
+            (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
         {
             long count = 0;
 
