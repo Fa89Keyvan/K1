@@ -3,12 +3,59 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Dapper.Contrib.Extensions
 {
     public static partial class SqlMapperExtensions
     {
 
+
+        public static async Task<PagedList<TEntity>> GetPagedListAsync<TEntity>
+            (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
+            where TEntity : class
+        {
+            var taskResult = await Task<PagedList<TEntity>>.Run(() =>
+            {
+                return db.GetPagedList<TEntity>(listRequest, dbTransaction, commandTimeout);
+            });
+
+            return taskResult;
+        }
+
+
+        public static async Task<long> CountAsync<TEntity>(this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
+        {
+            long taskResult = await Task<long>.Run(() =>
+            {
+                return db.Count<TEntity>(listRequest, dbTransaction,commandTimeout);
+            });
+
+            return taskResult;
+        }
+        public static long Count<TEntity>
+            (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
+        {
+            long count = 0;
+
+            var type = typeof(TEntity);
+            string tableName = Cache.GetTableName(type);
+
+            var builder = new StringBuilder();
+            var parameters = new DynamicParameters();
+
+            builder.AppendFormat("Select Count(1) From {0} ", tableName);
+
+            if (listRequest.WithNolock)
+                builder.Append(" with(nolock) ");
+
+            ApplyFilters(listRequest.GetFilters(), builder, parameters);
+
+            count = db.ExecuteScalar<long>(sql: builder.ToString(), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
+
+            return count;
+
+        }
 
         public static PagedList<TEntity> GetPagedList<TEntity>
             (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
@@ -57,33 +104,11 @@ namespace Dapper.Contrib.Extensions
             parameters.Add("@FETCH", listRequest.FetchCount);
 
 
-            pagedList.Data = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction, commandTimeout: commandTimeout).ToList();
+            var entities = db.Query<TEntity>(sql: builder.ToString(), parameters, dbTransaction, commandTimeout: commandTimeout);
+
+            pagedList.Data = entities.ToList();
 
             return pagedList;
-        }
-
-        public static long Count<TEntity>
-            (this IDbConnection db, PageListRequest<TEntity> listRequest, IDbTransaction dbTransaction = null, int? commandTimeout = null)
-        {
-            long count = 0;
-
-            var type = typeof(TEntity);
-            string tableName = Cache.GetTableName(type);
-
-            var builder = new StringBuilder();
-            var parameters = new DynamicParameters();
-
-            builder.AppendFormat("Select Count(1) From {0} ", tableName);
-
-            if (listRequest.WithNolock)
-                builder.Append(" with(nolock) ");
-
-            ApplyFilters(listRequest.GetFilters(), builder, parameters);
-
-            count = db.ExecuteScalar<long>(sql: builder.ToString(), param: parameters, transaction: dbTransaction, commandTimeout: commandTimeout);
-
-            return count;
-
         }
 
 
