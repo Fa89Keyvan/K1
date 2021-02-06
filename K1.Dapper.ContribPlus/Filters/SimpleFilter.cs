@@ -7,7 +7,7 @@ namespace K1.Dapper.ContribPlus.Filters
     {
         private readonly Operators _operator;
 
-        public SimpleFilter(string name, Operators @operator, object value)
+        public SimpleFilter(string name, Operators @operator, object value) : base(@operator)
         {
             this.Name = name;
             this._operator = @operator;

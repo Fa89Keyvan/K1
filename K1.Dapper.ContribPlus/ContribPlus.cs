@@ -87,7 +87,7 @@ namespace Dapper.Contrib.Extensions
                 return pagedList;
             }
 
-            string orders = string.Join(',', listRequest.Orders);
+            string orders = string.Join(",", listRequest.Orders);
             orders = SqlSanatizer.Sanatize(orders);
 
             ApplyFilters(listRequest.GetFilters(), builder, parameters);
